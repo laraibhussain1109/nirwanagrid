@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>PZEM Dashboard</title></head>
+<body>
+  <h1>Latest PZEM readings</h1>
+  <table border="1" cellpadding="6">
+    <tr><th>Time</th><th>Node</th><th>V</th><th>I</th><th>P</th><th>Energy</th><th>PF</th><th>Freq</th><th>Relay</th></tr>
+    {% for r in readings %}
+    <tr>
+      <td>{{ r.created_at }}</td>
+      <td>{{ r.nodeid }}</td>
+      <td>{{ r.voltage }}</td>
+      <td>{{ r.current }}</td>
+      <td>{{ r.power }}</td>
+      <td>{{ r.energy }}</td>
+      <td>{{ r.pf }}</td>
+      <td>{{ r.frequency }}</td>
+      <td>{{ r.relay }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</body>
+</html>
