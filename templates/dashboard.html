@@ -1,23 +1,110 @@
+<!-- templates/dashboard.html -->
 <!doctype html>
 <html>
-<head><meta charset="utf-8"><title>PZEM Dashboard</title></head>
+<head>
+  <meta charset="utf-8">
+  <title>PZEM Dashboard</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; margin: 20px; }
+    .card { padding: 12px; border: 1px solid #ddd; border-radius: 6px; display:inline-block; margin: 6px; min-width: 180px; }
+    #controls { margin-top: 12px; }
+    button { padding: 8px 12px; }
+  </style>
+</head>
 <body>
-  <h1>Latest PZEM readings</h1>
-  <table border="1" cellpadding="6">
-    <tr><th>Time</th><th>Node</th><th>V</th><th>I</th><th>P</th><th>Energy</th><th>PF</th><th>Freq</th><th>Relay</th></tr>
-    {% for r in readings %}
-    <tr>
-      <td>{{ r.created_at }}</td>
-      <td>{{ r.nodeid }}</td>
-      <td>{{ r.voltage }}</td>
-      <td>{{ r.current }}</td>
-      <td>{{ r.power }}</td>
-      <td>{{ r.energy }}</td>
-      <td>{{ r.pf }}</td>
-      <td>{{ r.frequency }}</td>
-      <td>{{ r.relay }}</td>
-    </tr>
-    {% endfor %}
-  </table>
+  <h1>PZEM Dashboard — Node <span id="nodeid">NODE_1</span></h1>
+
+  <div id="readings">
+    <div class="card">Voltage: <span id="voltage">-</span> V</div>
+    <div class="card">Current: <span id="current">-</span> A</div>
+    <div class="card">Power: <span id="power">-</span> W</div>
+    <div class="card">Energy: <span id="energy">-</span></div>
+    <div class="card">Power Factor: <span id="pf">-</span></div>
+    <div class="card">Frequency: <span id="frequency">-</span> Hz</div>
+    <div class="card">Relay (desired): <span id="relay">-</span></div>
+    <div class="card">Timestamp (IST): <span id="timestamp_ist">-</span></div>
+    <div class="card">Saved at: <span id="created">-</span></div>
+  </div>
+
+  <div id="controls">
+    <button id="btnToggle">Loading...</button>
+  </div>
+
+<script>
+  const NODE_ID = 'NODE_1';
+  const API_KEY = 'Chutiya@123'; // move to server in production
+  const controlUrl = `/api/pzem/control/${NODE_ID}/`;
+  const latestUrl = `/api/pzem/latest/${NODE_ID}/`;
+  const streamUrl = `/api/pzem/stream/`;
+
+  function updateUi(data) {
+    document.getElementById('voltage').innerText = data.voltage ?? '-';
+    document.getElementById('current').innerText = data.current ?? '-';
+    document.getElementById('power').innerText = data.power ?? '-';
+    document.getElementById('energy').innerText = data.energy ?? '-';
+    document.getElementById('pf').innerText = data.pf ?? '-';
+    document.getElementById('frequency').innerText = data.frequency ?? '-';
+    document.getElementById('relay').innerText = data.relay ?? '-';
+    document.getElementById('timestamp_ist').innerText = data.timestamp_ist ?? '-';
+    document.getElementById('created').innerText = data.created ?? '-';
+    // set toggle button label according to desired relay state
+    const btn = document.getElementById('btnToggle');
+    btn.innerText = (data.relay === 'ON') ? 'Turn OFF' : 'Turn ON';
+  }
+
+  async function fetchLatest() {
+    try {
+      const r = await fetch(latestUrl);
+      if (!r.ok) throw new Error('No data');
+      const json = await r.json();
+      updateUi(json);
+    } catch (err) {
+      console.warn('latest fetch error', err);
+    }
+  }
+
+  // Toggle Start/Stop (POST to control endpoint)
+  document.getElementById('btnToggle').addEventListener('click', async () => {
+    const cur = document.getElementById('btnToggle').innerText;
+    const desired = (cur === 'Turn OFF') ? 'OFF' : 'ON';
+    try {
+      const r = await fetch(controlUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+        body: JSON.stringify({relay: desired})
+      });
+      const json = await r.json();
+      // update UI with returned state
+      if (r.ok) updateUi(json);
+    } catch (err) {
+      console.error('control post error', err);
+    }
+  });
+
+  // SSE (preferred) with fallback to polling
+  if (!!window.EventSource) {
+    const es = new EventSource(streamUrl);
+    es.onmessage = (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        if (d && d.nodeid === NODE_ID) {
+          updateUi(d);
+        }
+      } catch (err) {
+        console.error('SSE parse error', err);
+      }
+    };
+    es.onerror = () => {
+      console.warn('SSE error, falling back to polling');
+      es.close();
+      setInterval(fetchLatest, 5000);
+    };
+  } else {
+    setInterval(fetchLatest, 5000);
+  }
+
+  // initial fetch of latest state
+  fetchLatest();
+</script>
 </body>
 </html>
